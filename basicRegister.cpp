@@ -2,26 +2,26 @@
 #include "config.h"
 #endif
 
-#include "resip/stack/ExtensionHeader.hxx"
-#include "resip/stack/HeaderTypes.hxx"
-#include "resip/stack/SipMessage.hxx"
-#include "resip/stack/SipStack.hxx"
-#include "resip/dum/ClientAuthManager.hxx"
-#include "resip/dum/ClientRegistration.hxx"
-#include "resip/dum/DialogUsageManager.hxx"
-#include "resip/dum/MasterProfile.hxx"
-#include "resip/dum/RegistrationHandler.hxx"
-#include "rutil/Log.hxx"
-#include "rutil/Logger.hxx"
-#include "rutil/ServerProcess.hxx"
-#include "rutil/Subsystem.hxx"
-#include "resip/dum/KeepAliveManager.hxx"
+#include "resip/stack/ExtensionHeader.hpp"
+#include "resip/stack/HeaderTypes.hpp"
+#include "resip/stack/SipMessage.hpp"
+#include "resip/stack/SipStack.hpp"
+#include "resip/dum/ClientAuthManager.hpp"
+#include "resip/dum/ClientRegistration.hpp"
+#include "resip/dum/DialogUsageManager.hpp"
+#include "resip/dum/MasterProfile.hpp"
+#include "resip/dum/RegistrationHandler.hpp"
+#include "rutil/Log.hpp"
+#include "rutil/Logger.hpp"
+#include "rutil/ServerProcess.hpp"
+#include "rutil/Subsystem.hpp"
+#include "resip/dum/KeepAliveManager.hpp"
 
 #if defined (USE_SSL)
 #if defined(WIN32) 
-#include "resip/stack/ssl/WinSecurity.hxx"
+#include "resip/stack/ssl/WinSecurity.hpp"
 #else
-#include "resip/stack/ssl/Security.hxx"
+#include "resip/stack/ssl/Security.hpp"
 #endif
 #endif
 
@@ -29,7 +29,7 @@
 #include <signal.h>
 #endif
 
-#include "RegConfig.hxx"
+#include "RegConfig.hpp"
 
 #define RESIPROCATE_SUBSYSTEM Subsystem::TEST
 
@@ -75,7 +75,11 @@ signalHandler(int signo)
    if(signo == SIGHUP)
    {
       InfoLog(<<"Received HUP signal, logger reset");
+      try{
       Log::reset();
+      }catch(...){
+         
+      }
       return;
    }
 #endif
@@ -90,8 +94,16 @@ class MyClientRegistrationAgent : public ServerProcess
 
       void run(int argc, char **argv)
       {
-         Data defaultConfigFile(DEFAULT_CONFIG_FILE);
+         try{
+         Data defaultConfigFile(DEFAULT_CONFIG_FILE); //Ctor
+         }catch(...){
+            
+         }
+         try{
          RegConfig cfg;
+         }catch(...){
+            
+         }
          try
          {
             cfg.parseConfig(argc, argv, defaultConfigFile);
@@ -102,17 +114,35 @@ class MyClientRegistrationAgent : public ServerProcess
             syslog(LOG_DAEMON | LOG_CRIT, "%s", ex.getMessage().c_str());
             exit(1);
          }
-
+         try{
          setPidFile(cfg.getConfigData("PidFile", "", true));
+         }catch(...){
+            
+         }
          if(cfg.getConfigBool("Daemonize", false))
          {
             daemonize();
          }
-
-         Data loggingType = cfg.getConfigData("LoggingType", "cout", true);
-         Data logLevel = cfg.getConfigData("LogLevel", "INFO", true);
-         Data logFilename = cfg.getConfigData("LogFilename", "basicRegister.log", true);
+         try{
+         Data loggingType(cfg.getConfigData("LoggingType", "cout", true));
+         }catch(...){
+            
+         }
+         try{
+         Data logLevel (cfg.getConfigData("LogLevel", "INFO", true));
+         }catch(...){
+            
+         }
+         try{
+         Data logFilename (cfg.getConfigData("LogFilename", "basicRegister.log", true));
+         }catch(...){
+            
+         }
+         try{
          Log::initialize(loggingType, logLevel, argv[0], logFilename.c_str(), 0);
+         }catch(...){
+            
+         }
 #ifndef WIN32
          if ( signal( SIGHUP, signalHandler ) == SIG_ERR )
          {
@@ -124,21 +154,44 @@ class MyClientRegistrationAgent : public ServerProcess
          InfoLog(<<"Starting client registration agent");
 
          NameAddr userAor(cfg.getConfigData("UserAor", "", false));
-         Data passwd(cfg.getConfigData("Password", "", false));
+         try{
+         Data passwd(cfg.getConfigData("Password", "", false));  //ctor
+         }catch(...){
+            
+         }
 
 #ifdef USE_SSL
 #ifdef WIN32
+         try{
          Security* security = new WinSecurity;
+         }catch(...){
+            
+         }
 #else
+         try{
          Security* security = new Security;
+         }catch(...){
+            
+         }
          security->addCADirectory(cfg.getConfigData("CADirectory", "/etc/ssl/certs", true));
 #endif
+         try{
          SipStack stack(security);
+         }catch(...){
+            
+         }
 #else
+         try{
          SipStack stack;
+         }catch(...){
+            
+         }
 #endif
-
+         try{ 
          DialogUsageManager clientDum(stack);
+         }catch(...){
+            
+         }
          SharedPtr<MasterProfile> profile(new MasterProfile);
          auto_ptr<ClientAuthManager> clientAuth(new ClientAuthManager);
          ClientHandler clientHandler;
@@ -159,8 +212,15 @@ class MyClientRegistrationAgent : public ServerProcess
          clientDum.getMasterProfile()->setDefaultRegistrationRetryTime(60);
 
          // keep alive test.
-         auto_ptr<KeepAliveManager> keepAlive(new KeepAliveManager);
+         try{
+         <KeepAliveManager> keepAlive(new KeepAliveManager);
+         }catch(...){
+            
+         }
+         try{
          clientDum.setKeepAliveManager(keepAlive);
+         }catch(...){
+         }
 
          clientDum.getMasterProfile()->setDefaultFrom(userAor);
          profile->setDigestCredential(userAor.uri().host(),
@@ -169,22 +229,56 @@ class MyClientRegistrationAgent : public ServerProcess
 
          profile->addSupportedOptionTag(Token(Symbols::Outbound));
          profile->addSupportedOptionTag(Token(Symbols::Path));
-
+         try{
          Data outboundProxy(cfg.getConfigData("OutboundProxy", "", true));
+         }catch(...){
+            
+         }
          if(!outboundProxy.empty())
          {
             const Uri _outboundProxy(outboundProxy);
             profile->setOutboundProxy(_outboundProxy);
          }
-
-         SharedPtr<SipMessage> regMessage = clientDum.makeRegistration(userAor);
+         try{ 
+         <SipMessage> regMessage; 
+         }catch(...){
+            
+         }
+         try{
+         clientDum.makeRegistration(userAor);
+         }catch(...){
+            
+         }
+         try{
          NameAddr contact(cfg.getConfigData("Contact", "", false));
-         contact.param(p_regid) = 1;
-         contact.param(p_Instance) = cfg.getConfigData("InstanceId", "", false);
+         }catch(...){
+            
+         }
+         try{
+         contact.param(p_regid);
+         }catch(...){
+            
+         }
+         try{
+            contact.param(p_Instance);
+         }catch(...){
+            
+         }
+         try{
          regMessage->header(h_Contacts).clear();
+         }catch(...){
+            
+         }
+         try{
          regMessage->header(h_Contacts).push_back(contact);
-
+         }catch(...){
+            
+         }
+         try{
          clientDum.send( regMessage );
+         }catch(...){
+            
+         }
 
          int n = 0;
          while ( true )
@@ -194,12 +288,23 @@ class MyClientRegistrationAgent : public ServerProcess
          }
        }
 };
+MyClientRegistrationAgent::MyClientRegistrationAgent(){
+   
+}
+
+MyClientRegistrationAgent ::~MyClientRegistrationAgent() {
+   
+}
 
 int
 main(int argc, char** argv)
 {
    MyClientRegistrationAgent agent;
+   try{
    agent.run(argc, argv);
+   }catch(...){
+      
+   }
 }
 
 /* ====================================================================
